@@ -4,8 +4,8 @@ module.exports = {
 	config: {
 		name: "notification",
 		aliases: ["notify", "noti"],
-		version: "1.7",
-		author: "NTKhang",
+		version: "1.8",
+		author: "NTKhang Fixed By EryXenX",
 		countDown: 5,
 		role: 2,
 		description: {
@@ -24,33 +24,71 @@ module.exports = {
 	langs: {
 		vi: {
 			missingMessage: "Vui lòng nhập tin nhắn bạn muốn gửi đến tất cả các nhóm",
-			notification: "Thông báo từ admin bot đến tất cả nhóm chat (không phản hồi tin nhắn này)",
-			sendingNotification: "Bắt đầu gửi thông báo từ admin bot đến %1 nhóm chat",
-			sentNotification: "✓ Đã gửi thông báo đến %1 nhóm thành công",
-			errorSendingNotification: "Có lỗi xảy ra khi gửi đến %1 nhóm:\n%2"
+			sendingNotification: "📡 Đang gửi thông báo đến %1 nhóm...\n⏳ Vui lòng chờ...",
+			sentNotification: "📊 Kết quả thông báo\n─────────────────────\n✅ Thành công : %1 nhóm",
+			errorSendingNotification: "❌ Thất bại   : %1 nhóm\n%2"
 		},
 		en: {
 			missingMessage: "Please enter the message you want to send to all groups",
-			notification: "Notification from admin bot to all chat groups (do not reply to this message)",
-			sendingNotification: "Start sending notification from admin bot to %1 chat groups",
-			sentNotification: "✓ Sent notification to %1 groups successfully",
-			errorSendingNotification: "An error occurred while sending to %1 groups:\n%2"
+			sendingNotification: "📡 Sending notification to %1 groups...\n⏳ Please wait...",
+			sentNotification: "📊 Notification Report\n─────────────────────\n✅ Success : %1 groups",
+			errorSendingNotification: "❌ Failed  : %1 groups\n%2"
+		},
+		bn: {
+			missingMessage: "অনুগ্রহ করে সব গ্রুপে পাঠাতে চান এমন message লিখুন",
+			sendingNotification: "📡 %1 টি গ্রুপে নোটিফিকেশন পাঠানো হচ্ছে...\n⏳ অপেক্ষা করুন...",
+			sentNotification: "📊 নোটিফিকেশন রিপোর্ট\n─────────────────────\n✅ সফল : %1 টি গ্রুপ",
+			errorSendingNotification: "❌ ব্যর্থ : %1 টি গ্রুপ\n%2"
+		},
+		tl: {
+			missingMessage: "Mangyaring ilagay ang mensaheng gusto mong ipadala sa lahat ng grupo",
+			sendingNotification: "📡 Nagpapadala ng notification sa %1 grupo...\n⏳ Mangyaring maghintay...",
+			sentNotification: "📊 Ulat ng Notification\n─────────────────────\n✅ Tagumpay : %1 grupo",
+			errorSendingNotification: "❌ Nabigo  : %1 grupo\n%2"
+		},
+		hi: {
+			missingMessage: "Kripya wo message dalein jo aap sabhi groups mein bhejna chahte hain",
+			sendingNotification: "📡 %1 groups mein notification bheja ja raha hai...\n⏳ Kripya prateeksha karein...",
+			sentNotification: "📊 Notification Report\n─────────────────────\n✅ Safal : %1 groups",
+			errorSendingNotification: "❌ Asafal : %1 groups\n%2"
+		},
+		ar: {
+			missingMessage: "الرجاء إدخال الرسالة التي تريد إرسالها لجميع المجموعات",
+			sendingNotification: "📡 جاري إرسال الإشعار إلى %1 مجموعة...\n⏳ يرجى الانتظار...",
+			sentNotification: "📊 تقرير الإشعار\n─────────────────────\n✅ نجاح : %1 مجموعة",
+			errorSendingNotification: "❌ فشل : %1 مجموعة\n%2"
 		}
 	},
 
-	onStart: async function ({ message, api, event, args, commandName, envCommands, threadsData, getLang }) {
+	onStart: async function ({ message, api, event, args, commandName, envCommands, threadsData, usersData, getLang }) {
 		const { delayPerGroup } = envCommands[commandName];
 		if (!args[0])
 			return message.reply(getLang("missingMessage"));
+
+		const senderID = event.senderID;
+		const senderName = await usersData.get(senderID, "name") || "Admin";
+
+		const attachmentStreams = await getStreamsFromAttachment(
+			[
+				...event.attachments,
+				...(event.messageReply?.attachments || [])
+			].filter(item => ["photo", "png", "animated_image", "video", "audio"].includes(item.type))
+		);
+
+		const msgText = args.join(" ");
+		const body = `📢 ADMIN NOTIFICATION\n─────────────────────\n  ${msgText}\n─────────────────────\n👤 ${senderName}`;
+
 		const formSend = {
-			body: `${getLang("notification")}\n────────────────\n${args.join(" ")}`,
-			attachment: await getStreamsFromAttachment(
-				[
-					...event.attachments,
-					...(event.messageReply?.attachments || [])
-				].filter(item => ["photo", "png", "animated_image", "video", "audio"].includes(item.type))
-			)
+			body,
+			mentions: [
+				{
+					tag: senderName,
+					id: senderID
+				}
+			]
 		};
+		if (attachmentStreams && attachmentStreams.length > 0)
+			formSend.attachment = attachmentStreams;
 
 		const allThreadID = (await threadsData.getAll()).filter(t => t.isGroup && t.members.find(m => m.userID == api.getCurrentUserID())?.inGroup);
 		message.reply(getLang("sendingNotification", allThreadID.length));
@@ -69,7 +107,7 @@ module.exports = {
 				await new Promise(resolve => setTimeout(resolve, delayPerGroup));
 			}
 			catch (e) {
-				sendError.push(tid);
+				sendError.push({ threadIDs: [tid], errorDescription: e?.error || e?.message || String(e) });
 			}
 		}
 
@@ -79,7 +117,7 @@ module.exports = {
 				sendSucces++;
 			}
 			catch (e) {
-				const { errorDescription } = e;
+				const errorDescription = e?.error || e?.message || String(e);
 				if (!sendError.some(item => item.errorDescription == errorDescription))
 					sendError.push({
 						threadIDs: [sended.threadID],
@@ -94,7 +132,7 @@ module.exports = {
 		if (sendSucces > 0)
 			msg += getLang("sentNotification", sendSucces) + "\n";
 		if (sendError.length > 0)
-			msg += getLang("errorSendingNotification", sendError.reduce((a, b) => a + b.threadIDs.length, 0), sendError.reduce((a, b) => a + `\n - ${b.errorDescription}\n  + ${b.threadIDs.join("\n  + ")}`, ""));
+			msg += getLang("errorSendingNotification", sendError.reduce((a, b) => a + b.threadIDs.length, 0), sendError.reduce((a, b) => a + `\n • ${b.errorDescription}\n   └ ${b.threadIDs.join(", ")}`, ""));
 		message.reply(msg);
 	}
 };
