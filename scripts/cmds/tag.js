@@ -1,16 +1,15 @@
 module.exports = {
   config: {
     name: "tag",
-    aliases: ["all", "everyone"],
-    category: "GROUP",
+    category: "box chat",
     role: 0,
-    author: "MR_FARHAN",
+    author: "EryXenX",
     countDown: 3,
     description: {
-      en: "Tag by reply, name or tag all members"
+      en: "Tag members by name, reply or everyone"
     },
     guide: {
-      en: "{pm}tag [name] [msg]\n{pm}tag all [msg]\nReply + {pm}tag [msg]"
+      en: "{p}tag [name] [msg]\n{p}tag all [msg]\nReply + {p}tag [msg]"
     }
   },
 
@@ -21,23 +20,31 @@ module.exports = {
       const threadData = await threadsData.get(threadID);
 
       const members = threadData.members
-        .filter(m => m.inGroup === true)
-        .map(m => ({
-          name: m.name,
-          id: m.userID
+        .filter(member => member.inGroup)
+        .map(member => ({
+          name: member.name,
+          id: member.userID
         }));
 
       let tagUsers = [];
       let text = "";
-      
+
       if (messageReply) {
         const uid = messageReply.senderID;
         const name = await usersData.getName(uid);
-        tagUsers.push({ name, id: uid });
+
+        tagUsers.push({
+          name,
+          id: uid
+        });
+
         text = args.join(" ");
       }
 
-      else if (args[0] && ["all", "cdi"].includes(args[0].toLowerCase())) {
+      else if (
+        args[0] &&
+        ["all", "everyone", "cdi"].includes(args[0].toLowerCase())
+      ) {
         tagUsers = members;
         text = args.slice(1).join(" ");
       }
@@ -45,7 +52,7 @@ module.exports = {
       else {
         if (!args[0]) {
           return api.sendMessage(
-            "⚠️ Name / reply / tag all",
+            "⚠️ | Reply, name or all use korun.",
             threadID,
             messageID
           );
@@ -54,31 +61,46 @@ module.exports = {
         const searchName = args[0].toLowerCase();
         text = args.slice(1).join(" ");
 
-        tagUsers = members.filter(m =>
-          m.name.toLowerCase().includes(searchName)
+        tagUsers = members.filter(member =>
+          member.name.toLowerCase().includes(searchName)
         );
 
         if (tagUsers.length === 0) {
-          return api.sendMessage("❌ User Not Found", threadID, messageID);
+          return api.sendMessage(
+            "❌ | User Not Found.",
+            threadID,
+            messageID
+          );
         }
       }
 
-      const mentions = tagUsers.map(u => ({
-        tag: u.name,
-        id: u.id
+      const mentions = tagUsers.map(user => ({
+        tag: user.name,
+        id: user.id
       }));
 
-      const namesText = tagUsers.map(u => u.name).join(", ");
-      const body = text ? `${namesText}\n${text}` : namesText;
+      const namesText = tagUsers
+        .map(user => `• ${user.name}`)
+        .join("\n");
 
-      api.sendMessage(
-        { body, mentions },
+      const body = text
+        ? `╭─ Tag Notice\n${namesText}\n├──────────\n💬 ${text}\n╰──────────`
+        : `╭─ Tag Notice\n${namesText}\n╰──────────`;
+
+      return api.sendMessage(
+        {
+          body,
+          mentions
+        },
         threadID,
         messageReply ? messageReply.messageID : messageID
       );
-
-    } catch (err) {
-      api.sendMessage("❌ Error: " + err.message, threadID, messageID);
+    } catch (error) {
+      return api.sendMessage(
+        `❌ | Error: ${error.message}`,
+        threadID,
+        messageID
+      );
     }
   }
 };
