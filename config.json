@@ -23,8 +23,8 @@
     "ignoreCommand": []
   },
   "adminBot": [
-    "61590688843640",
-    "100069319995799",
+    "",
+    "",
     "61591571863767"
   ],
   "reactUnsend": {
@@ -152,7 +152,7 @@
     "updatePresence": true,
     "listenTyping": true,
     "logLevel": "error",
-    "selfListen": true,
+    "selfListen": false,
     "selfListenEvent": true,
     "autoMarkDelivery": false,
     "autoReconnect": true,
