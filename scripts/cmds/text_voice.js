@@ -2,139 +2,130 @@ const axios = require("axios");
 const fs = require("fs-extra");
 const path = require("path");
 
-// 🔒 Author Lock
-const LOCKED_AUTHOR = "Farhan-Khan (🔒 Do Not Change)";
-
-// 📂 Global control file
-const controlFile = path.join(__dirname, "cache", "control.json");
-
 module.exports = {
   config: {
-    name: "text_voice",
-    version: "5.0.0",
-    author: "Farhan-Khan (🔒 Do Not Change)",
+    name: "fahim_voice",
+    version: "1.0.5",
+    author: "MR_FARHAN",
     countDown: 1,
     role: 0,
-    shortDescription: "Voice + React + Seen + Global Control",
-    longDescription: "Auto voice + react + seen + ON/OFF system",
+    shortDescription: "Ultra Fast Voice Reply",
+    longDescription: "Sends specific voice messages instantly using local cache",
     category: "system"
   },
 
-  onStart: async function () {
-    if (module.exports.config.author !== LOCKED_AUTHOR) {
-      console.error("❌ Author changed! Script stopped.");
-      process.exit(1);
-    }
+  // ==============================
+  // 🔒 AUTHOR LOCK SYSTEM
+  // ==============================
+  _authorLock: function () {
+    const expectedAuthor = "MR_FARHAN";
 
-    if (!fs.existsSync(controlFile)) {
-      fs.writeFileSync(controlFile, JSON.stringify({ active: true }));
+    if (module.exports.config.author !== expectedAuthor) {
+      throw new Error("🚫 AUTHOR LOCKED: You are not allowed to change author name!");
     }
   },
 
-  onChat: async function ({ event, api, message }) {
-    if (!event.body || !event.messageID) return;
+  onStart: async function () {},
 
-    const inputRaw = event.body.trim();
-    const input = inputRaw.toLowerCase();
+  onChat: async function ({ event, message }) {
 
-    // 📂 Load status
-    let status = true;
-    if (fs.existsSync(controlFile)) {
-      status = JSON.parse(fs.readFileSync(controlFile)).active;
-    }
+    // 🔒 Run lock check every time
+    this._authorLock();
 
-    // 🔘 Commands
-    if (input === "/autoreact off") {
-      fs.writeFileSync(controlFile, JSON.stringify({ active: false }));
-      return message.reply("❌ Auto React & Seen OFF (All Groups)");
-    }
+    if (!event.body) return;
 
-    if (input === "/autoreact on") {
-      fs.writeFileSync(controlFile, JSON.stringify({ active: true }));
-      return message.reply("✅ Auto React & Seen ON (All Groups)");
-    }
+    const input = event.body.toLowerCase().trim();
 
-    // ❌ Ignore prefix commands
-    const prefixes = ["/", "!", "#"];
-    if (prefixes.some(p => inputRaw.startsWith(p))) return;
-
-    // 👀 Auto Seen
-    if (status) {
-      try {
-        api.markAsRead(event.threadID);
-      } catch (e) {}
-    }
-
-    // 😆 Auto React
-    if (status) {
-      try {
-        const reactions = ["👍", "😆", "🔥", "❤️", "😎"];
-        const randomReact = reactions[Math.floor(Math.random() * reactions.length)];
-        api.setMessageReaction(randomReact, event.messageID, () => {}, true);
-      } catch (e) {}
-    }
-
-    // 🎵 Voice Map
     const voiceMap = {
-      "চুদি": "https://files.catbox.moe/ecgpak.mp4",
-      "cudi": "https://files.catbox.moe/ecgpak.mp4",
-      "chudi": "https://files.catbox.moe/ecgpak.mp4",
-      "magi": "https://files.catbox.moe/ecgpak.mp4",
-      "মাগি": "https://files.catbox.moe/ecgpak.mp4",
-      "খানকি": "https://files.catbox.moe/ecgpak.mp4",
-      "khanki": "https://files.catbox.moe/ecgpak.mp4",
-      "sinior": "https://files.catbox.moe/twtfat.mp3",
-      "valobasi": "https://files.catbox.moe/84fp4p.mp3",
-      "mahira": "https://files.catbox.moe/3u6shs.mp3",
+
+      "magi": "https://files.catbox.moe/9co1zx.mp4",
+      "মাগি": "https://files.catbox.moe/63hyw2.mp4",
+
+      "খানকি": "https://files.catbox.moe/qhtvsf.mp4",
+      "khanki": "https://files.catbox.moe/kje55j.mp4",
+
+      "brand": "https://files.catbox.moe/e2nd1c.mp3",
+      "ফাহিম": "https://files.catbox.moe/91qnco.mp4",
+
+      "@fahim ahmed": "https://files.catbox.moe/84fp4p.mp3",
+
       "mahi": "https://files.catbox.moe/3u6shs.mp3",
-      "মাহি": "https://files.catbox.moe/3u6shs.mp3",
+
       "good night": "https://files.catbox.moe/i29m4q.mp3",
       "গুড নাইট": "https://files.catbox.moe/i29m4q.mp3",
+
       "good morning": "https://files.catbox.moe/8gzqx5.mp3",
-      "গুড মর্নিং": "https://files.catbox.moe/8gzqx5.mp3",
-      "i love you": "https://files.catbox.moe/y3fk8i.mp3",
-      "love you": "https://files.catbox.moe/y3fk8i.mp3",
-      "@everyone": "https://files.catbox.moe/3u6shs.mp3",
-      "bye": "https://files.catbox.moe/fdqh2m.mp3",
-      "by": "https://files.catbox.moe/fdqh2m.mp3",
-      "বাই": "https://files.catbox.moe/fdqh2m.mp3",
-      "বায়": "https://files.catbox.moe/fdqh2m.mp3"
+
+      "valobasi": "https://files.catbox.moe/s4ksgt.mp3",
+
+      "jan": "https://files.catbox.moe/rbbukc.mp3",
+      "biye": "https://files.catbox.moe/lssnaq.mp3",
+      "love": "https://files.catbox.moe/dwwa0b.mp3",
+      "ভালোবাসি": "https://files.catbox.moe/84fp4p.mp3",
+      "wifi": "https://files.catbox.moe/kgl4qy.mp3",
+
+      "maye": "https://files.catbox.moe/q62hco.mp3",
+      "maiya": "https://files.catbox.moe/941wy3.mp3",
+
+      "mon": "https://files.catbox.moe/y951y2.mp3",
+      "sundor": "https://files.catbox.moe/j8aly8.mp3",
+
+      "replly": "https://files.catbox.moe/knbcsa.mp3",
+      "mama": "https://files.catbox.moe/6r9a0q.mp3",
+      "jamai": "https://files.catbox.moe/tksdsh.mp3",
+      "hasi": "https://files.catbox.moe/ng48w0.mp3",
+      "sundori": "https://files.catbox.moe/xpsbrv.mp3",
+      "online": "https://files.catbox.moe/yclzbp.mp3",
+      "eid": "https://files.catbox.moe/jtselt.mp3",
+      "boss": "https://files.catbox.moe/k6zvre.mp3",
+      "bou": "https://files.catbox.moe/n00sm0.mp3",
+      "free": "https://files.catbox.moe/vobj4c.mp3",
+      "valo": "https://files.catbox.moe/nv8t0p.mp3",
+      "asbo": "https://files.catbox.moe/znipjw.mp3",
+      "jai": "https://files.catbox.moe/d0lcxj.mp3",
+      "inbox": "https://files.catbox.moe/cf01jp.mp3",
+      "text": "https://files.catbox.moe/q7fu6p.mp3"
+
     };
 
-    // 🔍 STRICT WORD MATCH (main fix)
-    for (const key in voiceMap) {
-      const escapedKey = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      const pattern = new RegExp(`(^|\\s)${escapedKey}(\\s|$)`, "i");
+    if (voiceMap[input]) {
 
-      if (pattern.test(inputRaw)) {
-        const audioUrl = voiceMap[key];
+      const audioUrl = voiceMap[input];
 
-        const cacheDir = path.join(__dirname, "cache", "voices");
-        fs.ensureDirSync(cacheDir);
+      const cacheDir = path.join(__dirname, "cache", "voices");
 
-        const fileName = `${Buffer.from(key).toString("hex")}.mp3`;
-        const filePath = path.join(cacheDir, fileName);
+      fs.ensureDirSync(cacheDir);
 
-        try {
-          if (fs.existsSync(filePath)) {
-            return await message.reply({
-              attachment: fs.createReadStream(filePath)
-            });
-          }
+      const ext = path.extname(audioUrl);
 
-          const response = await axios.get(audioUrl, {
-            responseType: "arraybuffer"
-          });
+      const fileName = `${Buffer.from(input).toString("hex")}${ext}`;
 
-          fs.writeFileSync(filePath, Buffer.from(response.data));
+      const filePath = path.join(cacheDir, fileName);
 
+      try {
+
+        // Send from cache
+        if (fs.existsSync(filePath)) {
           return await message.reply({
             attachment: fs.createReadStream(filePath)
           });
-
-        } catch (error) {
-          console.error("Voice error:", error);
         }
+
+        // Download file
+        const response = await axios.get(audioUrl, {
+          responseType: "arraybuffer"
+        });
+
+        // Save cache
+        fs.writeFileSync(filePath, Buffer.from(response.data));
+
+        // Send file
+        await message.reply({
+          attachment: fs.createReadStream(filePath)
+        });
+
+      } catch (error) {
+        console.error("Error sending voice:", error);
       }
     }
   }
