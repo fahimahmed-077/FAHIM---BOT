@@ -20,8 +20,8 @@ module.exports = {
     if (this.config.author !== "Farhan-Khan") return;
 
     const admins = [
-      { uid: "61591571863767", names: ["@Fahim Ahmed"] },
-      { uid: "61591571863767", names: ["@মে্ঁঘ্ঁ বা্ঁল্ঁক্ঁ"] }
+      { uid: "61591603332230", names: ["@Fahim Ahmed"] },
+      { uid: "", names: ["@মে্ঁঘ্ঁ বা্ঁল্ঁক্ঁ"] }
     ];
 
     const senderID = String(event.senderID);
