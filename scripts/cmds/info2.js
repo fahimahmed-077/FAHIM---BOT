@@ -68,7 +68,7 @@ ______________________________
 -------------+++++++++++++-------------`;
 
     const cacheDir = path.join(__dirname, "cache");
-    const fbUserID = "61591603332230"; // Change to your Facebook user ID
+    const fbUserID = "61594262812719"; // Change to your Facebook user ID
     const imgPath = path.join(cacheDir, `${fbUserID}.png`);
 
     try {
