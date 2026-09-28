@@ -1,142 +1,160 @@
-const A = require("axios");
-const B = require("fs");
-const C = require("path");
-const D = require("yt-search");
-const E = require("node-fetch");
+const axios = require("axios");
+const yts = require("yt-search");
+const fs = require("fs");
+const path = require("path");
 
-const F = "https://raw.githubusercontent.com/aryannix/stuffs/master/raw/apis.json";
+const CACHE_DIR = path.join(__dirname, "cache");
+const VIDEO_API_BASE = "https://eryxenx.agi.bd/api/video";
+
+async function fetchVideoInfo(videoUrl) {
+	const infoRes = await axios.get(VIDEO_API_BASE, {
+		params: { url: videoUrl },
+		timeout: 60000
+	});
+
+	const data = infoRes.data;
+	if (!data?.success || !data?.downloadUrl) {
+		throw new Error(data?.error || "downloadUrl paoa jayni API response e");
+	}
+	return data;
+}
+
+async function streamDownloadToFile(dlUrl, filePath) {
+	if (!fs.existsSync(CACHE_DIR)) fs.mkdirSync(CACHE_DIR, { recursive: true });
+
+	const response = await axios.get(dlUrl, {
+		responseType: "stream",
+		timeout: 300000,
+		maxContentLength: Infinity,
+		maxBodyLength: Infinity,
+		headers: {
+			"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+		}
+	});
+
+	const contentType = response.headers["content-type"] || "";
+	const isValid = contentType.includes("video") || contentType.includes("octet-stream");
+
+	if (!isValid) {
+		let bodyText = "";
+		try {
+			const chunks = [];
+			for await (const chunk of response.data) {
+				chunks.push(chunk);
+				if (Buffer.concat(chunks).length > 2000) break;
+			}
+			bodyText = Buffer.concat(chunks).toString("utf-8").slice(0, 500);
+		} catch (_) {}
+
+		throw new Error(`Invalid content received from downloadUrl (type: ${contentType})` + (bodyText ? ` — upstream said: "${bodyText.trim()}"` : ""));
+	}
+
+	const writer = fs.createWriteStream(filePath);
+
+	await new Promise((resolve, reject) => {
+		response.data.pipe(writer);
+		let failed = false;
+		const onError = (err) => {
+			if (failed) return;
+			failed = true;
+			writer.close();
+			fs.unlink(filePath, () => {});
+			reject(err);
+		};
+		response.data.on("error", onError);
+		writer.on("error", onError);
+		writer.on("close", () => { if (!failed) resolve(); });
+	});
+
+	const stats = fs.statSync(filePath);
+	if (stats.size < 1024) {
+		fs.unlink(filePath, () => {});
+		throw new Error(`Downloaded file too small (${stats.size} bytes) — corrupt ba failed download`);
+	}
+}
+
+function extractApiErrorMessage(err) {
+	const raw = err.response?.data;
+	if (raw && typeof raw === "object" && !Buffer.isBuffer(raw)) {
+		if (raw.error) return raw.error;
+		if (raw.message) return raw.message;
+	}
+	if (raw) {
+		try {
+			const text = Buffer.isBuffer(raw) ? raw.toString("utf-8") : String(raw);
+			const parsed = JSON.parse(text);
+			if (parsed?.error) return parsed.error;
+			if (parsed?.message) return parsed.message;
+		} catch (_) {}
+	}
+	return err.message;
+}
+
+function tempFilePath(ext) {
+	if (!fs.existsSync(CACHE_DIR)) fs.mkdirSync(CACHE_DIR, { recursive: true });
+	return path.join(CACHE_DIR, `video_${Date.now()}_${Math.floor(Math.random() * 1e4)}.${ext}`);
+}
+
+async function sendWithRetry(message, msg, retries = 2) {
+	for (let i = 0; i <= retries; i++) {
+		try {
+			return await message.reply(msg);
+		} catch (err) {
+			const is408 = err?.error === 408 || String(err?.message || err).includes("408");
+			if (is408 && i < retries) {
+				await new Promise(r => setTimeout(r, 2000));
+				continue;
+			}
+			throw err;
+		}
+	}
+}
 
 module.exports = {
-  config: {
-    name: "video",
-    aliases: ["v"],
-    version: "0.0.1",
-    author: "ArYAN",
-    countDown: 5,
-    role: 0,
-    shortDescription: "Download YouTube video interactively.",
-    longDescription: "Search YouTube, display a list of 6 videos, and download the selected one.",
-    category: "MUSIC",
-    guide: "/video [video name]"
-  },
+	config: {
+		name: "video",
+		aliases: ["yt", "ytvideo"],
+		version: "2.2.0",
+		author: "EryXenX",
+		countDown: 5,
+		role: 0,
+		shortDescription: { en: "Search and download a YouTube video" },
+		longDescription: { en: "Search and download the top matching YouTube video automatically." },
+		category: "media",
+		guide: { en: "{pn} <video name>" }
+	},
 
-  onStart: async function ({ api, event, args }) {
-    if (!args.length)
-      return api.sendMessage("❌ Missing video name.", event.threadID, event.messageID);
+	onStart: async function ({ message, args, event, api }) {
+		const query = args.join(" ");
+		if (!query) return message.reply("Please provide a video name.");
 
-    const G = args.join(" ");
-    
-    try {
-      const H = await D(G);
-      if (!H || !H.videos.length) throw new Error("No video.");
+		api.setMessageReaction("⏳", event.messageID);
 
-      const I = H.videos.slice(0, 6); 
-      
-      let J = "🔎 Found 6 videos. Reply with the number to download:\n\n";
-      const K = [];
-      const L = []; 
+		let file;
+		try {
+			const search = await yts(query);
+			const video = search.videos?.[0];
+			if (!video) {
+				api.setMessageReaction("❌", event.messageID);
+				return message.reply("No videos found for your query.");
+			}
 
-      for (let i = 0; i < I.length; i++) {
-        const M = I[i];
-        
-        const N = await A.get(M.thumbnail, { responseType: 'stream' });
-        L.push(N.data);
-        
-        const O = M.views.toLocaleString();
-        
-        J += `${i + 1}. ${M.title}\nTime: ${M.timestamp}\nChannel: ${M.author.name}\nViews: ${O}\n\n`;
-        
-        K.push({ 
-            title: M.title,
-            url: M.url,
-            channel: M.author.name,
-            views: O
-        });
-      }
+			const info = await fetchVideoInfo(video.url);
+			file = tempFilePath("mp4");
+			await streamDownloadToFile(info.downloadUrl, file);
 
-      const P = await api.sendMessage(
-        { body: J, attachment: L },
-        event.threadID
-      );
-      
-      global.GoatBot.onReply.set(P.messageID, {
-        commandName: this.config.name,
-        author: event.senderID,
-        videos: K,
-        listMessageID: P.messageID 
-      });
+			await sendWithRetry(message, {
+				body: info.title || video.title,
+				attachment: fs.createReadStream(file)
+			});
 
-    } catch (err) {
-      let Q = err.message.includes("No video") ? "No video found." : "Search error.";
-      api.sendMessage(`❌ Error: ${Q}`, event.threadID, event.messageID);
-    }
-  },
-  
-  onReply: async function({ api, event, Reply }) {
-    if (event.senderID !== Reply.author) return;
-
-    if (Reply.listMessageID) {
-        api.unsendMessage(Reply.listMessageID);
-    }
-    
-    global.GoatBot.onReply.delete(event.messageReply.messageID);
-
-
-    const R = parseInt(event.body.trim());
-    if (isNaN(R) || R < 1 || R > Reply.videos.length) {
-      return api.sendMessage("❌ Invalid selection. Choose 1-6.", event.threadID, event.messageID);
-    }
-    
-    const S = Reply.videos[R - 1];
-    const T = S.url;
-    
-    let U;
-    try {
-      const V = await A.get(F);
-      U = V.data && V.data.nixtube; 
-      if (!U) throw new Error("Config error.");
-    } catch (error) {
-      return api.sendMessage("❌ Config fetch error.", event.threadID, event.messageID);
-    }
-    
-    try {
-      const W = `${U}?url=${encodeURIComponent(T)}&type=video`;
-      
-      const X = await A.get(W);
-
-      if (!X.data.status || !X.data.downloadUrl) {
-          throw new Error("Link fetch error.");
-      }
-      
-      const Y = X.data.downloadUrl;
-
-      const Z = await E(Y);
-      if (!Z.ok) throw new Error("Download failed.");
-
-      const a = await Z.buffer();
-      const b = `${S.title}.mp4`.replace(/[\/\\:*?"<>|]/g, "").substring(0, 100); 
-      const c = C.join(__dirname, b);
-
-      B.writeFileSync(c, a);
-      
-      const d = `• Title: ${S.title}\n• Channel Name: ${S.channel}\n• Quality: ${X.data.quality || 'N/A'}\n• Views: ${S.views || 'N/A'}`;
-
-
-      await api.sendMessage(
-        { 
-          body: d,
-          attachment: B.createReadStream(c) 
-        },
-        event.threadID,
-        () => {
-          B.unlinkSync(c);
-        },
-        event.messageID
-      );
-
-    } catch (err) {
-      let e = err.message.includes("Link fetch error") || err.message.includes("Download failed") ? err.message : "Download error.";
-      api.sendMessage(`❌ Error: ${e}`, event.threadID, event.messageID);
-    }
-  }
+			api.setMessageReaction("✅", event.messageID);
+		} catch (e) {
+			console.error("[VIDEO COMMAND ERROR]:", e?.response?.data || e.message || e);
+			api.setMessageReaction("❌", event.messageID);
+			message.reply("Download failed: " + extractApiErrorMessage(e));
+		} finally {
+			if (file) fs.unlink(file, () => {});
+		}
+	}
 };
